@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Git commit-msg hook that validates commit messages."""
+
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+
+
+def load_validator():
+    script_path = Path(__file__).resolve()
+    for candidate in script_path.parents:
+        validator_path = candidate / "validator.py"
+        if validator_path.is_file():
+            sys.path.insert(0, str(candidate))
+            from validator import validate_commit_message  # pylint: disable=import-outside-toplevel
+
+            return validate_commit_message
+
+    raise RuntimeError("Could not locate validator.py from the hook script.")
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("Usage: commit-msg <commit-message-file>")
+        return 1
+
+    validate_commit_message = load_validator()
+    commit_message_path = Path(sys.argv[1])
+    message = commit_message_path.read_text(encoding="utf-8", errors="replace")
+    result = validate_commit_message(message)
+
+    if result.is_valid:
+        return 0
+
+    print("Commit rejected.")
+    print("Your message does not follow the required format.")
+    for error in result.errors:
+        print(f"- {error}")
+    print('Try: git commit -m "feat(auth): add JWT login support"')
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
