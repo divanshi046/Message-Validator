@@ -1,138 +1,93 @@
 #!/usr/bin/env python3
-"""
-install_hooks.py — One-time setup script to install Git hooks into .git/hooks/
-Run this once after cloning the repo: python install_hooks.py
-"""
+"""Install the Git hooks used by this project."""
 
-import os
-import sys
+from __future__ import annotations
+
+from pathlib import Path
 import shutil
 import stat
+import subprocess
+import sys
 
-# ──────────────────────────────────────────────
-# COLORS
-# ──────────────────────────────────────────────
+HOOKS = ("commit-msg", "pre-commit")
 
-RED    = "\033[0;31m"
-YELLOW = "\033[0;33m"
-GREEN  = "\033[0;32m"
-CYAN   = "\033[0;36m"
-BOLD   = "\033[1m"
-RESET  = "\033[0m"
 
-# ──────────────────────────────────────────────
-# HOOKS TO INSTALL
-# ──────────────────────────────────────────────
+def run_git_command(*args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return completed.stdout.strip()
 
-HOOKS = [
-    "commit-msg",
-    "pre-commit",
-]
 
-# ──────────────────────────────────────────────
-# HELPERS
-# ──────────────────────────────────────────────
+def get_repo_root() -> Path:
+    return Path(run_git_command("rev-parse", "--show-toplevel"))
 
-def print_banner():
-    print(f"\n{CYAN}{BOLD}╔═══════════════════════════════════════════╗")
-    print(f"║     Git Commit Validator — Hook Setup     ║")
-    print(f"╚═══════════════════════════════════════════╝{RESET}\n")
 
-def print_success(msg):
-    print(f"  {GREEN}✓ {msg}{RESET}")
+def get_hooks_directory() -> Path:
+    return Path(run_git_command("rev-parse", "--git-path", "hooks"))
 
-def print_error(msg):
-    print(f"  {RED}✗ {msg}{RESET}")
 
-def print_info(msg):
-    print(f"  {CYAN}→ {msg}{RESET}")
+def get_source_directory() -> Path:
+    return Path(__file__).resolve().parent / "hooks"
 
-def find_git_root() -> str | None:
-    """Walk up directories to find the .git folder."""
-    current = os.path.abspath(os.getcwd())
-    while True:
-        if os.path.isdir(os.path.join(current, ".git")):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            return None
-        current = parent
 
-def find_hooks_source_dir() -> str | None:
-    """Find the hooks/ source directory relative to this script."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    hooks_dir = os.path.join(script_dir, "hooks")
-    if os.path.isdir(hooks_dir):
-        return hooks_dir
-    return None
+def make_executable(path: Path) -> None:
+    mode = path.stat().st_mode
+    path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-def make_executable(filepath: str):
-    """Add executable permission to a file."""
-    current = stat.S_IMODE(os.lstat(filepath).st_mode)
-    os.chmod(filepath, current | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-def install_hook(hook_name: str, source_dir: str, target_dir: str) -> bool:
-    """Copy a hook from source to .git/hooks/. Returns True on success."""
-    src = os.path.join(source_dir, hook_name)
-    dst = os.path.join(target_dir, hook_name)
+def install_hook(hook_name: str, source_dir: Path, target_dir: Path) -> None:
+    source = source_dir / hook_name
+    target = target_dir / hook_name
 
-    if not os.path.isfile(src):
-        print_error(f"Source hook not found: {src}")
-        return False
+    if not source.is_file():
+        raise FileNotFoundError(f"Missing source hook: {source}")
 
-    # Backup existing hook
-    if os.path.isfile(dst):
-        backup = dst + ".backup"
-        shutil.copy2(dst, backup)
-        print_info(f"Backed up existing '{hook_name}' → '{hook_name}.backup'")
+    if target.exists():
+        backup_path = target.with_name(f"{target.name}.backup")
+        shutil.copy2(target, backup_path)
+        print(f"Backed up existing {hook_name} hook to {backup_path}")
 
-    shutil.copy2(src, dst)
-    make_executable(dst)
-    print_success(f"Installed '{hook_name}' → {dst}")
-    return True
+    shutil.copy2(source, target)
+    make_executable(target)
+    print(f"Installed {hook_name} hook to {target}")
 
-# ──────────────────────────────────────────────
-# MAIN
-# ──────────────────────────────────────────────
 
-def main():
-    print_banner()
+def main() -> int:
+    try:
+        repo_root = get_repo_root()
+        hooks_dir = get_hooks_directory()
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip() if exc.stderr else "Not inside a Git repository."
+        print(stderr, file=sys.stderr)
+        return 1
 
-    # ── Find .git root ──
-    git_root = find_git_root()
-    if not git_root:
-        print_error("Not inside a Git repository. Please run from within your project.")
-        sys.exit(1)
+    source_dir = get_source_directory()
+    if not source_dir.is_dir():
+        print(f"Missing hooks directory: {source_dir}", file=sys.stderr)
+        return 1
 
-    git_hooks_dir = os.path.join(git_root, ".git", "hooks")
-    print_info(f"Git root:   {git_root}")
-    print_info(f"Hooks dir:  {git_hooks_dir}\n")
+    hooks_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Find source hooks ──
-    source_dir = find_hooks_source_dir()
-    if not source_dir:
-        print_error("Could not find 'hooks/' directory next to this script.")
-        sys.exit(1)
+    print(f"Repository root: {repo_root}")
+    print(f"Hooks directory: {hooks_dir}")
 
-    # ── Install each hook ──
-    success_count = 0
-    for hook in HOOKS:
-        if install_hook(hook, source_dir, git_hooks_dir):
-            success_count += 1
+    try:
+        for hook_name in HOOKS:
+            install_hook(hook_name, source_dir, hooks_dir)
+    except OSError as exc:
+        print(f"Failed to install hooks: {exc}", file=sys.stderr)
+        return 1
 
-    # ── Summary ──
-    print(f"\n{'─' * 45}")
-    if success_count == len(HOOKS):
-        print(f"\n{GREEN}{BOLD}  ✓ All {success_count} hook(s) installed successfully!{RESET}")
-        print(f"\n{BOLD}  What happens now:{RESET}")
-        print(f"  • {CYAN}pre-commit{RESET}  — runs on every {BOLD}git commit{RESET} (file checks)")
-        print(f"  • {CYAN}commit-msg{RESET}  — validates your message format\n")
-        print(f"  {BOLD}Example valid commit:{RESET}")
-        print(f"  {GREEN}git commit -m \"feat(auth): add JWT login support\"{RESET}\n")
-    else:
-        print(f"\n{YELLOW}{BOLD}  ⚠ {success_count}/{len(HOOKS)} hook(s) installed. Check errors above.{RESET}\n")
-        sys.exit(1)
+    print("")
+    print("Hook installation complete.")
+    print("Example valid commit: feat(auth): add jwt login support")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
