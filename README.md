@@ -1,153 +1,148 @@
 # Git Commit Message Validator
 
-Automates commit message validation using Git hooks. Rejects commits that don't follow the **Conventional Commits** standard — keeping your project history clean, readable, and consistent.
-
----
+Validate Git commit messages with local hooks so every commit follows a consistent Conventional Commits format.
 
 ## Project Structure
 
+```text
+Message-Validator/
+|-- hooks/
+|   |-- commit-msg
+|   |-- commit_msg_hook.py
+|   |-- pre-commit
+|   `-- pre_commit_hook.py
+|-- tests/
+|   |-- test_validator.py
+|   `-- test_web_interface.py
+|-- web/
+|   |-- app.css
+|   |-- app.js
+|   `-- index.html
+|-- install_hooks.py
+|-- PROJECT_OVERVIEW.md
+|-- README.md
+|-- validator.py
+`-- web_interface.py
 ```
-git-commit-validator/
-│
-├── hooks/
-│   ├── commit-msg        ← Validates commit message format
-│   └── pre-commit        ← Checks staged files for issues
-│
-├── tests/
-│   └── test_validator.py ← Unit tests for the validator
-│
-├── install_hooks.py      ← One-time setup script
-└── README.md
-```
 
----
+## What It Enforces
 
-## Commit Message Format
+The `commit-msg` hook checks the first line of the commit message:
 
-All commits must follow the **Conventional Commits** specification:
-
-```
+```text
 <type>(<scope>): <description>
-
-[optional body]
-
-[optional footer]
 ```
 
-### Allowed Types
+Supported commit types:
 
-| Type       | When to use                                      |
-|------------|--------------------------------------------------|
-| `feat`     | Adding a new feature                             |
-| `fix`      | Fixing a bug                                     |
-| `docs`     | Documentation changes only                       |
-| `style`    | Formatting, whitespace (no logic change)         |
-| `refactor` | Restructuring code without changing behaviour    |
-| `test`     | Adding or updating tests                         |
-| `chore`    | Maintenance — deps, build tools, config          |
-| `perf`     | Performance improvement                          |
-| `ci`       | CI/CD configuration changes                      |
-| `revert`   | Reverting a previous commit                      |
+- `feat`
+- `fix`
+- `docs`
+- `style`
+- `refactor`
+- `test`
+- `chore`
+- `perf`
+- `ci`
+- `build`
+- `revert`
 
-### Examples
+Validation rules:
+
+- Type must be one of the allowed values.
+- Scope is optional and must stay lowercase.
+- Description must be at least 10 characters.
+- Description must start with a lowercase letter.
+- Description must not end with a period.
+- Subject length must stay within 72 characters.
+- A commit body must be separated from the subject by a blank line.
+
+The `pre-commit` hook scans staged files and:
+
+- Blocks commits with merge conflict markers.
+- Blocks commits with trailing whitespace.
+- Warns about debug statements such as `print()` or `console.log()`.
+- Warns when staged files are larger than 500 KB.
+
+## Examples
+
+Valid:
 
 ```bash
-# ✅ Valid
-git commit -m "feat(auth): add JWT login support"
-git commit -m "fix: resolve null pointer in user service"
+git commit -m "feat(auth): add jwt login support"
+git commit -m "fix: resolve token refresh race condition"
 git commit -m "docs(readme): update installation steps"
-git commit -m "chore: bump dependencies to latest versions"
-git commit -m "feat(api)!: remove deprecated v1 endpoints"   # breaking change
-
-# ❌ Invalid
-git commit -m "added login"                  # no type
-git commit -m "Fix: resolve crash."          # uppercase type, ends with period
-git commit -m "feat(Auth): add page"         # uppercase scope
-git commit -m "feat: bug"                    # description too short
+git commit -m "feat(api)!: remove deprecated v1 endpoints"
 ```
 
----
+Invalid:
+
+```bash
+git commit -m "added login"
+git commit -m "Fix: resolve crash"
+git commit -m "feat(Auth): add page"
+git commit -m "feat: bug"
+```
 
 ## Installation
 
-### 1. Clone / set up your repo
+From the repository root:
 
 ```bash
-git clone <your-repo-url>
-cd <your-repo>
+py -3 install_hooks.py
 ```
 
-### 2. Add this validator to your project
+The installer copies both hook files into `.git/hooks/`, backs up any existing hooks with a `.backup` suffix, and marks the new hooks as executable where supported.
 
-Copy the `hooks/` folder and `install_hooks.py` into your project root.
-
-### 3. Run the setup script (once per developer)
+If `py` is not available on your machine, you can still use:
 
 ```bash
 python install_hooks.py
 ```
 
-This copies the hooks into `.git/hooks/` and makes them executable. Every teammate must run this once after cloning.
-
----
-
-## How It Works
-
-### `commit-msg` Hook
-
-Runs automatically after you type your commit message. Validates:
-
-| Rule | Detail |
-|------|--------|
-| Format | Must match `type(scope): description` |
-| Valid type | Must be one of the 10 allowed types |
-| Scope | Optional, but must be lowercase with no spaces |
-| Description | Must be lowercase start, ≥10 chars, no trailing period |
-| Subject length | Max 72 characters |
-| Body separator | Body must be separated by a blank line |
-
-### `pre-commit` Hook
-
-Runs before the commit message prompt. Checks staged files for:
-
-- **Merge conflict markers** (`<<<<<<<`, `=======`, `>>>>>>>`) — blocks commit
-- **Trailing whitespace** — blocks commit
-- **Debug statements** — warns (`print()`, `console.log`, `debugger`, `pdb.set_trace`)
-- **Large files** (>500KB) — warns
-
----
-
 ## Running Tests
 
 ```bash
-# Simple run
-python tests/test_validator.py
-
-# With pytest (more detailed output)
-pip install pytest
-python -m pytest tests/ -v
+py -3 -m unittest discover -s tests -v
 ```
 
----
+## Live Browser Interface
 
-## Bypassing Hooks (Emergency Only)
+Run the local server:
 
 ```bash
-git commit --no-verify -m "your message"
+py -3 web_interface.py
 ```
 
-> ⚠️ Use this only in emergencies. Bypassing hooks defeats the purpose of having them.
+Then open:
 
----
+```text
+http://127.0.0.1:8000
+```
 
-## Importing Validator Logic in Tests
+The interface lets you:
 
-The `commit-msg` file has no `.py` extension (Git hook requirement). The test file uses `importlib` to load it dynamically — no renaming needed.
+- validate commit messages live in the browser
+- scan sample file contents with the same pre-commit rules
+- inspect the current staged files in this repository
 
----
+If you want to use another port:
 
-## Requirements
+```bash
+py -3 web_interface.py --port 8080
+```
 
-- Python 3.10+
-- Git 2.x+
-- No external dependencies — uses only the Python standard library
+## How the Hooks Work
+
+- `hooks/commit-msg` loads the commit message file passed by Git and validates it with `validator.py`.
+- `hooks/pre-commit` scans staged file contents from Git's index, not just the working tree.
+- `web_interface.py` exposes the same validation rules over a small local HTTP server.
+- `validator.py` contains the shared validation and scanning logic used by both hooks and the tests.
+
+## Emergency Bypass
+
+```bash
+git commit --no-verify -m "chore: emergency release note update"
+```
+
+Use this only when you intentionally need to skip local hook validation.

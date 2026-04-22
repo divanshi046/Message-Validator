@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commit Validator Live UI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Live Browser Demo</p>
+          <h1>Commit Message Validator</h1>
+          <p class="hero-text">
+            Turn the Git-hook project into a presentation-ready interface. Type a
+            commit message, scan sample file content, or inspect your current
+            staged files without leaving the browser.
+          </p>
+          <div class="hero-actions">
+            <code>py -3 web_interface.py</code>
+            <span>Then open <strong>http://127.0.0.1:8000</strong></span>
+          </div>
+        </div>
+        <div class="hero-panel">
+          <p class="panel-title">What this live UI shows</p>
+          <ul class="compact-list">
+            <li>Conventional Commits validation</li>
+            <li>Trailing whitespace and merge-conflict checks</li>
+            <li>Warnings for debug statements and large files</li>
+            <li>Real staged-file scanning from the current repo</li>
+          </ul>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <p class="section-tag">Commit Message</p>
+              <h2>Validate live as you type</h2>
+            </div>
+            <div id="messageBadge" class="status-pill neutral">Waiting</div>
+          </div>
+
+          <label class="field-label" for="messageInput">Commit message</label>
+          <textarea id="messageInput" spellcheck="false">feat(auth): add jwt login support</textarea>
+
+          <div class="meta-grid">
+            <div class="metric">
+              <span class="metric-label">Subject length</span>
+              <strong id="subjectLength">0</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Commit type</span>
+              <strong id="commitType">-</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Scope</span>
+              <strong id="commitScope">-</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Breaking change</span>
+              <strong id="breakingFlag">No</strong>
+            </div>
+          </div>
+
+          <div class="result-grid">
+            <div>
+              <h3>Rule Checklist</h3>
+              <ul id="messageChecks" class="result-list"></ul>
+            </div>
+            <div>
+              <h3>Errors</h3>
+              <ul id="messageErrors" class="result-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <p class="section-tag">File Scan</p>
+              <h2>Test pre-commit file rules</h2>
+            </div>
+            <div id="fileBadge" class="status-pill neutral">Waiting</div>
+          </div>
+
+          <div class="inline-fields">
+            <div class="field">
+              <label class="field-label" for="filePathInput">File path</label>
+              <input id="filePathInput" type="text" value="demo.txt" />
+            </div>
+            <button id="fileScanButton" class="action-button">Scan content</button>
+          </div>
+
+          <label class="field-label" for="fileContentInput">File content</label>
+          <textarea id="fileContentInput" spellcheck="false">console.log("debug")</textarea>
+
+          <div class="meta-grid">
+            <div class="metric">
+              <span class="metric-label">Lines</span>
+              <strong id="fileLines">0</strong>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Size</span>
+              <strong id="fileSize">0 KB</strong>
+            </div>
+          </div>
+
+          <div class="result-grid">
+            <div>
+              <h3>Blocking Issues</h3>
+              <ul id="fileErrors" class="result-list"></ul>
+            </div>
+            <div>
+              <h3>Warnings</h3>
+              <ul id="fileWarnings" class="result-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="card full-width">
+          <div class="card-header">
+            <div>
+              <p class="section-tag">Real Repository Check</p>
+              <h2>Scan current staged files</h2>
+            </div>
+            <button id="stagedScanButton" class="action-button subtle">
+              Refresh staged report
+            </button>
+          </div>
+
+          <div class="meta-strip">
+            <span id="stagedSummary">No staged scan yet.</span>
+          </div>
+
+          <div class="result-grid">
+            <div>
+              <h3>Staged files</h3>
+              <ul id="stagedFiles" class="result-list"></ul>
+            </div>
+            <div>
+              <h3>Blocking issues</h3>
+              <ul id="stagedErrors" class="result-list"></ul>
+            </div>
+            <div>
+              <h3>Warnings</h3>
+              <ul id="stagedWarnings" class="result-list"></ul>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "Unable to locate the Git repository root." >&2
+  exit 1
+}
+
+hook_script="$repo_root/hooks/commit_msg_hook.py"
+
+if command -v py >/dev/null 2>&1; then
+  exec py -3 "$hook_script" "$@"
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$hook_script" "$@"
+fi
+
+if command -v python >/dev/null 2>&1; then
+  exec python "$hook_script" "$@"
+fi
+
+echo "Python 3 is required to run the commit-msg hook." >&2
+exit 1
