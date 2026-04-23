@@ -1,8 +1,35 @@
+const ALLOWED_TYPES = [
+  "feat",
+  "fix",
+  "docs",
+  "style",
+  "refactor",
+  "test",
+  "chore",
+  "perf",
+  "ci",
+  "build",
+  "revert",
+];
+
+const AUTO_ALLOWED_PREFIXES = ["Merge ", "Revert ", "fixup! ", "squash! "];
+const HEADER_PATTERN =
+  /^(?<type>[a-z]+)(?:\((?<scope>[a-z0-9._/-]+)\))?(?<breaking>!)?: (?<description>.+)$/;
+const DEBUG_PATTERNS = [
+  /\bprint\s*\(/,
+  /\bconsole\.log\s*\(/,
+  /\bdebugger\b/,
+  /\bpdb\.set_trace\s*\(/,
+];
+const CONFLICT_MARKERS = ["<<<<<<<", "=======", ">>>>>>>"];
+const MAX_SUBJECT_LENGTH = 72;
+const MIN_DESCRIPTION_LENGTH = 10;
+const LARGE_FILE_LIMIT_BYTES = 500 * 1024;
+
 const messageInput = document.getElementById("messageInput");
 const filePathInput = document.getElementById("filePathInput");
 const fileContentInput = document.getElementById("fileContentInput");
 const fileScanButton = document.getElementById("fileScanButton");
-const stagedScanButton = document.getElementById("stagedScanButton");
 
 function debounce(fn, delay) {
   let timerId;
@@ -10,28 +37,6 @@ function debounce(fn, delay) {
     window.clearTimeout(timerId);
     timerId = window.setTimeout(() => fn(...args), delay);
   };
-}
-
-async function postJson(url, payload) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function getJson(url) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
-  return response.json();
 }
 
 function setStatusBadge(elementId, state, label) {
@@ -72,10 +77,162 @@ function renderCheckList(elementId, checks) {
   }
 }
 
-async function refreshMessageValidation() {
-  const data = await postJson("/api/validate-message", {
-    message: messageInput.value,
+function validateCommitMessage(message) {
+  const strippedMessage = message.replace(/\n+$/g, "");
+  if (!strippedMessage.trim()) {
+    return {
+      is_valid: false,
+      errors: ["Commit message cannot be empty."],
+      subject: "",
+      subject_length: 0,
+      line_count: 0,
+      auto_allowed: false,
+      allowed_types: [...ALLOWED_TYPES],
+      parsed: { type: null, scope: null, description: null, breaking: false },
+      checks: [],
+    };
+  }
+
+  const lines = strippedMessage.split("\n");
+  const subject = lines[0].trim();
+  const autoAllowed = AUTO_ALLOWED_PREFIXES.some((prefix) => subject.startsWith(prefix));
+  const match = subject.match(HEADER_PATTERN);
+  const groups = match?.groups ?? {};
+  const commitType = groups.type ?? null;
+  const scope = groups.scope ?? null;
+  const description = groups.description ?? "";
+  const breaking = Boolean(groups.breaking);
+  const errors = [];
+
+  if (!autoAllowed && !match) {
+    errors.push("Use Conventional Commits format: <type>(<scope>): <description>.");
+    errors.push("Example: feat(auth): add JWT login support");
+  } else if (!autoAllowed) {
+    if (!ALLOWED_TYPES.includes(commitType)) {
+      errors.push(
+        `Unknown commit type '${commitType}'. Allowed types: ${ALLOWED_TYPES.join(", ")}.`,
+      );
+    }
+
+    if (subject.length > MAX_SUBJECT_LENGTH) {
+      errors.push(
+        `Subject line is too long (${subject.length} characters). Keep it within 72 characters.`,
+      );
+    }
+
+    if (description.length < MIN_DESCRIPTION_LENGTH) {
+      errors.push(
+        `Description is too short. Use at least ${MIN_DESCRIPTION_LENGTH} characters.`,
+      );
+    }
+
+    if (description && description[0] !== description[0].toLowerCase()) {
+      errors.push("Description must start with a lowercase letter.");
+    }
+
+    if (description.endsWith(".")) {
+      errors.push("Description must not end with a period.");
+    }
+  }
+
+  if (lines.length > 1 && lines[1].trim()) {
+    errors.push("Add a blank line between the subject and the body.");
+  }
+
+  const checks = [
+    {
+      label: "Matches Conventional Commits header format",
+      passed: autoAllowed || Boolean(match),
+    },
+    {
+      label: "Uses an allowed commit type",
+      passed: autoAllowed || (commitType ? ALLOWED_TYPES.includes(commitType) : false),
+    },
+    {
+      label: `Subject stays within ${MAX_SUBJECT_LENGTH} characters`,
+      passed: subject.length <= MAX_SUBJECT_LENGTH,
+    },
+    {
+      label: `Description is at least ${MIN_DESCRIPTION_LENGTH} characters`,
+      passed: autoAllowed || description.length >= MIN_DESCRIPTION_LENGTH,
+    },
+    {
+      label: "Description starts with lowercase",
+      passed: autoAllowed || (description ? description[0] === description[0].toLowerCase() : false),
+    },
+    {
+      label: "Description does not end with a period",
+      passed: autoAllowed || (description ? !description.endsWith(".") : false),
+    },
+    {
+      label: "Body is separated from the subject by a blank line",
+      passed: lines.length <= 1 || !lines[1].trim(),
+    },
+  ];
+
+  return {
+    is_valid: errors.length === 0,
+    errors,
+    subject,
+    subject_length: subject.length,
+    line_count: lines.length,
+    auto_allowed: autoAllowed,
+    allowed_types: [...ALLOWED_TYPES],
+    parsed: {
+      type: commitType,
+      scope,
+      description: description || null,
+      breaking,
+    },
+    checks,
+  };
+}
+
+function scanContent(path, content) {
+  const normalizedPath = path.trim() || "demo.txt";
+  const errors = [];
+  const warnings = [];
+  const lines = content.split(/\r?\n/);
+  const bytes = new TextEncoder().encode(content);
+
+  if (bytes.length > LARGE_FILE_LIMIT_BYTES) {
+    warnings.push(
+      `${normalizedPath} is large (${(bytes.length / 1024).toFixed(
+        1,
+      )} KB). Consider avoiding large files in commits.`,
+    );
+  }
+
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1;
+    const stripped = line.trim();
+
+    if (CONFLICT_MARKERS.some((marker) => line.startsWith(marker))) {
+      errors.push(`${normalizedPath}:${lineNumber} contains a merge conflict marker.`);
+    }
+
+    if (/[ \t]+$/.test(line)) {
+      errors.push(`${normalizedPath}:${lineNumber} contains trailing whitespace.`);
+    }
+
+    if (DEBUG_PATTERNS.some((pattern) => pattern.test(line))) {
+      warnings.push(`${normalizedPath}:${lineNumber} contains a debug statement: ${stripped}`);
+    }
   });
+
+  return {
+    is_valid: errors.length === 0,
+    errors,
+    warnings,
+    path: normalizedPath,
+    line_count: content ? lines.length : 0,
+    size_bytes: bytes.length,
+    size_kb: (bytes.length / 1024).toFixed(2),
+  };
+}
+
+function refreshMessageValidation() {
+  const data = validateCommitMessage(messageInput.value);
 
   setStatusBadge(
     "messageBadge",
@@ -92,11 +249,8 @@ async function refreshMessageValidation() {
   renderList("messageErrors", data.errors, "bad", "No blocking errors.");
 }
 
-async function refreshFileScan() {
-  const data = await postJson("/api/scan-content", {
-    path: filePathInput.value,
-    content: fileContentInput.value,
-  });
+function refreshFileScan() {
+  const data = scanContent(filePathInput.value, fileContentInput.value);
 
   setStatusBadge(
     "fileBadge",
@@ -111,39 +265,36 @@ async function refreshFileScan() {
   renderList("fileWarnings", data.warnings, "warn", "No warnings.");
 }
 
-async function refreshStagedReport() {
-  const data = await getJson("/api/staged-report");
-  const fileCount = data.files.length;
-  const summary = fileCount
-    ? `${fileCount} staged file${fileCount === 1 ? "" : "s"} checked`
-    : "No staged files found right now.";
-
-  document.getElementById("stagedSummary").textContent = summary;
-  renderList("stagedFiles", data.files, "ok", "Nothing is currently staged.");
-  renderList("stagedErrors", data.errors, "bad", "No blocking issues.");
-  renderList("stagedWarnings", data.warnings, "warn", "No warnings.");
+function renderHostedModeCard() {
+  renderList(
+    "hostedCapabilities",
+    [
+      "Commit message rules run entirely in your browser.",
+      "File content scanning for conflict markers, trailing whitespace, and debug statements works on GitHub Pages.",
+      "The hosted site cannot inspect your local staged files or your Git index.",
+    ],
+    "ok",
+    "No hosted capabilities listed.",
+  );
+  renderList(
+    "hostedNotes",
+    [
+      "Use the Git hooks in this repository when you want real staged-file validation during commits.",
+      "Use the local Python preview only if you want the repository-aware staged scan.",
+    ],
+    "warn",
+    "No notes available.",
+  );
 }
 
-const debouncedMessageRefresh = debounce(() => {
-  refreshMessageValidation().catch((error) => {
-    setStatusBadge("messageBadge", "invalid", "Error");
-    renderList("messageErrors", [error.message], "bad", "No blocking errors.");
-  });
-}, 220);
-
-const debouncedFileRefresh = debounce(() => {
-  refreshFileScan().catch((error) => {
-    setStatusBadge("fileBadge", "invalid", "Error");
-    renderList("fileErrors", [error.message], "bad", "No blocking issues.");
-  });
-}, 220);
+const debouncedMessageRefresh = debounce(refreshMessageValidation, 180);
+const debouncedFileRefresh = debounce(refreshFileScan, 180);
 
 messageInput.addEventListener("input", debouncedMessageRefresh);
 filePathInput.addEventListener("input", debouncedFileRefresh);
 fileContentInput.addEventListener("input", debouncedFileRefresh);
-fileScanButton.addEventListener("click", () => refreshFileScan());
-stagedScanButton.addEventListener("click", () => refreshStagedReport());
+fileScanButton.addEventListener("click", refreshFileScan);
 
 refreshMessageValidation();
 refreshFileScan();
-refreshStagedReport();
+renderHostedModeCard();

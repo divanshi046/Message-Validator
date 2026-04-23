@@ -106,9 +106,38 @@ python install_hooks.py
 py -3 -m unittest discover -s tests -v
 ```
 
-## Live Browser Interface
+## GitHub Pages Demo
 
-Run the local server:
+The `web/` folder is now a fully static browser app, so it can be deployed on GitHub Pages without a Python backend.
+
+What works on GitHub Pages:
+
+- live commit-message validation in the browser
+- file-content scanning for conflict markers, trailing whitespace, debug statements, and large files
+
+What does not work on GitHub Pages:
+
+- reading your local staged files or Git index
+
+The repository includes a GitHub Actions workflow at `.github/workflows/deploy-pages.yml` that uploads the `web/` directory to GitHub Pages.
+
+If Pages is not already configured in the repository, open your repository on GitHub and set:
+
+```text
+Settings -> Pages -> Source -> GitHub Actions
+```
+
+Once enabled, pushes to `main` or `demo-validator` will deploy the static site.
+
+The site URL will be:
+
+```text
+https://divanshi046.github.io/Message-Validator/
+```
+
+## Local Preview
+
+If you want to preview the static site locally:
 
 ```bash
 py -3 web_interface.py
@@ -120,12 +149,6 @@ Then open:
 http://127.0.0.1:8000
 ```
 
-The interface lets you:
-
-- validate commit messages live in the browser
-- scan sample file contents with the same pre-commit rules
-- inspect the current staged files in this repository
-
 If you want to use another port:
 
 ```bash
@@ -136,7 +159,8 @@ py -3 web_interface.py --port 8080
 
 - `hooks/commit-msg` loads the commit message file passed by Git and validates it with `validator.py`.
 - `hooks/pre-commit` scans staged file contents from Git's index, not just the working tree.
-- `web_interface.py` exposes the same validation rules over a small local HTTP server.
+- `web/` contains the static GitHub Pages app.
+- `web_interface.py` serves the same static files locally for preview.
 - `validator.py` contains the shared validation and scanning logic used by both hooks and the tests.
 
 ## Emergency Bypass
