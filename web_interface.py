@@ -137,12 +137,13 @@ class ValidatorRequestHandler(BaseHTTPRequestHandler):
             self._serve_static_file("index.html")
             return
 
-        if self.path.startswith("/static/"):
-            self._serve_static_file(self.path.removeprefix("/static/"))
-            return
-
         if self.path == "/api/staged-report":
             self._send_json(HTTPStatus.OK, build_staged_payload())
+            return
+
+        relative_path = self.path.removeprefix("/static/").lstrip("/")
+        if relative_path:
+            self._serve_static_file(relative_path)
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")

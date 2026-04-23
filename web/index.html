@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="./app.css" />
   </head>
   <body>
     <div class="page-shell">
@@ -19,22 +19,22 @@
           <p class="eyebrow">Live Browser Demo</p>
           <h1>Commit Message Validator</h1>
           <p class="hero-text">
-            Turn the Git-hook project into a presentation-ready interface. Type a
-            commit message, scan sample file content, or inspect your current
-            staged files without leaving the browser.
+            A GitHub Pages friendly demo for the commit-message validator.
+            Validate Conventional Commit headers and run pre-commit style file
+            checks entirely in the browser.
           </p>
           <div class="hero-actions">
-            <code>py -3 web_interface.py</code>
-            <span>Then open <strong>http://127.0.0.1:8000</strong></span>
+            <code>GitHub Pages static demo</code>
+            <span>No local server required for the hosted version</span>
           </div>
         </div>
         <div class="hero-panel">
-          <p class="panel-title">What this live UI shows</p>
+          <p class="panel-title">What this hosted UI shows</p>
           <ul class="compact-list">
             <li>Conventional Commits validation</li>
             <li>Trailing whitespace and merge-conflict checks</li>
             <li>Warnings for debug statements and large files</li>
-            <li>Real staged-file scanning from the current repo</li>
+            <li>Static browser demo ready for GitHub Pages</li>
           </ul>
         </div>
       </header>
@@ -129,36 +129,33 @@
         <section class="card full-width">
           <div class="card-header">
             <div>
-              <p class="section-tag">Real Repository Check</p>
-              <h2>Scan current staged files</h2>
+              <p class="section-tag">Hosted Mode</p>
+              <h2>What GitHub Pages can and cannot do</h2>
             </div>
-            <button id="stagedScanButton" class="action-button subtle">
-              Refresh staged report
-            </button>
+            <div class="status-pill neutral">Static site</div>
           </div>
 
           <div class="meta-strip">
-            <span id="stagedSummary">No staged scan yet.</span>
+            <span>
+              GitHub Pages can run the validator logic in your browser, but it
+              cannot access your local Git index or staged files.
+            </span>
           </div>
 
           <div class="result-grid">
             <div>
-              <h3>Staged files</h3>
-              <ul id="stagedFiles" class="result-list"></ul>
+              <h3>Available on Pages</h3>
+              <ul id="hostedCapabilities" class="result-list"></ul>
             </div>
             <div>
-              <h3>Blocking issues</h3>
-              <ul id="stagedErrors" class="result-list"></ul>
-            </div>
-            <div>
-              <h3>Warnings</h3>
-              <ul id="stagedWarnings" class="result-list"></ul>
+              <h3>Notes</h3>
+              <ul id="hostedNotes" class="result-list"></ul>
             </div>
           </div>
         </section>
       </main>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="./app.js"></script>
   </body>
 </html>
